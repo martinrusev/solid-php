@@ -1,85 +1,19 @@
 <?php
-
-class AmonRemote
-{
-	function __construct()
-	{
-		$amon_conf = file_get_contents('/etc/amon.conf');	
-		$to_json = json_decode($amon_conf);
-		$this->host = ( $to_json->web_app->host == NULL ) ? 'http://127.0.0.1': $to_json->web_app->host;
-
-		// Check if the host is IP address and add http if necessary
-		if (substr($this->host, 0, 7) != 'http://') {
-			$this->host = sprintf("http://%s", $this->host);
-		}
-
-		$this->port = ( $to_json->web_app->port == NULL ) ? 2464 : $to_json->web_app->port;
-
-		$this->url = sprintf("%s:%d", $this->host, $this->port);
-
-	}
-
-}
-
+require_once dirname(__FILE__)."/amon/config.php";
+require_once dirname(__FILE__)."/amon/data.php";
+require_once dirname(__FILE__)."/amon/errors.php";
+require_once dirname(__FILE__)."/amon/remote.php";
 
 class Amon
 {
-	/**
-	 * Make request
-	 *
-	 * @param string $url
-	 * @param array  $data
-	 * @param string $refer
-	 *
-	 * @return array
-	 * @throws \InvalidArgumentException On unsupported scheme.
-	 * @throws \RuntimeException When communication to server fails.
-	 */
-	public static function request($url, array $data, $referer='') 
-	{
 
-		if (substr($url, 0, 7) != 'http://') {
-			throw new \InvalidArgumentException("Only http:// is supported.");
-		}
-	
-		$params = array(
-			'http' => array(
-				'method'  => 'POST',
-				'content' => json_encode($data),
-				'timeout' => 5,
-			)
-		);
+    static $exceptions;
 
+    static $previous_exception_handler;
+    static $previous_error_handler;
 
-		$context = stream_context_create($params);
-
-		$fp = @fopen($url, 'rb', false, $context);	 
-
-		if (!$fp) {
-			return array(
-				'status' => 'err', 
-				'error'  => "$errstr ($errno)"
-			);
-		}
-		
-		$response = @stream_get_contents($fp);
-
-		if ($response === false) {
-			throw new \RuntimeException("Problem sending POST to {$url}, $php_errormsg");
-		}
-	 
-		// split the result header from the content
-		$result  = explode("\r\n\r\n", $response, 2);
-		$header  = isset($result[0]) ? $result[0] : '';
-		$content = isset($result[1]) ? $result[1] : '';
-	 
-		// return as structured array:
-		return array(
-			'status'  => 'ok',
-			'header'  => $header,
-			'content' => $content
-		);
-	}
+    static $controller;
+    static $action;
 
     /**
      * Log!
@@ -89,18 +23,106 @@ class Amon
      *
      * @return void
      */
-	public static function log($message, $tags)
+	public static function log($message, $tags='')
 	{
 		$data = array(
 			'message' => $message,
 			'tags'  => $tags
 		);
 
-		$remote = new AmonRemote();
-		$log_url = sprintf("%s/api/log", $remote->url);
-
-		self::request($log_url, $data);
+		$config = new AmonConfig();
+		$log_url = sprintf("%s/api/log", $config->url);
+		
+		AmonRemote::request($log_url, $data);
 	}
+
+	static function setup_exception_handler() 
+	{
+
+        self::$exceptions = array();
+        self::$action = "";
+        self::$controller = "";
+
+        // set exception handler & keep old exception handler around
+        self::$previous_exception_handler = set_exception_handler(
+            array("Amon", "handle_exception")
+        );
+
+        self::$previous_error_handler = set_error_handler(
+            array("Amon", "handle_error")
+        );
+
+        register_shutdown_function(
+            array("Amon", "shutdown")
+        );
+    }
+
+	
+	static function shutdown() 
+	{
+		if ($e = error_get_last()) 
+		{
+            self::handle_error($e["type"], $e["message"], $e["file"], $e["line"]);
+        }
+    }
+
+	static function handle_error($errno, $errstr, $errfile, $errline)
+	{
+        if (!(error_reporting() & $errno)) {
+            return;
+        }
+
+        switch ($errno) {
+            case E_NOTICE:
+            case E_USER_NOTICE:
+                $ex = new PhpNotice($errstr, $errno, $errfile, $errline);
+                break;
+
+            case E_WARNING:
+            case E_USER_WARNING:
+                $ex = new PhpWarning($errstr, $errno, $errfile, $errline);
+                break;
+
+            case E_STRICT:
+                $ex = new PhpStrict($errstr, $errno, $errfile, $errline);
+                break;
+
+            case E_PARSE:
+                $ex = new PhpParse($errstr, $errno, $errfile, $errline);
+                break;
+
+            default:
+                $ex = new PhpError($errstr, $errno, $errfile, $errline);
+        }
+
+        self::handle_exception($ex, false);
+
+        if (self::$previous_error_handler) {
+            call_user_func(self::$previous_error_handler, $errno, $errstr, $errfile, $errline);
+        }
+    }
+
+
+    /*
+     * Exception handle class. Pushes the current exception onto the exception
+     * stack and calls the previous handler, if it exists. Ensures seamless
+     * integration.
+     */
+	static function handle_exception($exception, $call_previous = true) 
+	{
+		$config = new AmonConfig();
+		$exception_url = sprintf("%s/api/exception", $config->url);
+        self::$exceptions[] = $exception;
+
+		$data = new AmonData($exception);
+		AmonRemote::request($exception_url, $data->data);
+
+        // if there's a previous exception handler, we call that as well
+        if ($call_previous && self::$previous_exception_handler) {
+            call_user_func(self::$previous_exception_handler, $exception);
+        }
+    }
+
 }
 
-//Amon::log('test me', array('test', 'debug'));
+
