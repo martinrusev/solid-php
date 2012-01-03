@@ -1,4 +1,27 @@
 <?php
+
+class AmonRemote
+{
+	function __construct()
+	{
+		$amon_conf = file_get_contents('/etc/amon.conf');	
+		$to_json = json_decode($amon_conf);
+		$this->host = ( $to_json->web_app->host == NULL ) ? 'http://127.0.0.1': $to_json->web_app->host;
+
+		// Check if the host is IP address and add http if necessary
+		if (substr($this->host, 0, 7) != 'http://') {
+			$this->host = sprintf("http://%s", $this->host);
+		}
+
+		$this->port = ( $to_json->web_app->port == NULL ) ? 2464 : $to_json->web_app->port;
+
+		$this->url = sprintf("%s:%d", $this->host, $this->port);
+
+	}
+
+}
+
+
 class Amon
 {
 	/**
@@ -14,19 +37,24 @@ class Amon
 	 */
 	public static function request($url, array $data, $referer='') 
 	{
+
 		if (substr($url, 0, 7) != 'http://') {
 			throw new \InvalidArgumentException("Only http:// is supported.");
 		}
-		
+	
 		$params = array(
 			'http' => array(
 				'method'  => 'POST',
-				'content' => json_encode($data)
+				'content' => json_encode($data),
+				'timeout' => 5,
 			)
 		);
+
+
 		$context = stream_context_create($params);
 
 		$fp = @fopen($url, 'rb', false, $context);	 
+
 		if (!$fp) {
 			return array(
 				'status' => 'err', 
@@ -35,6 +63,7 @@ class Amon
 		}
 		
 		$response = @stream_get_contents($fp);
+
 		if ($response === false) {
 			throw new \RuntimeException("Problem sending POST to {$url}, $php_errormsg");
 		}
@@ -60,15 +89,18 @@ class Amon
      *
      * @return void
      */
-	public static function log($message, $level)
+	public static function log($message, $tags)
 	{
 		$data = array(
 			'message' => $message,
-			'level'   => $level	
+			'tags'  => $tags
 		);
 
-		self::request('http://localhost:2464/api/log', $data);
+		$remote = new AmonRemote();
+		$log_url = sprintf("%s/api/log", $remote->url);
+
+		self::request($log_url, $data);
 	}
 }
 
-Amon::log('test me', 'debug');
+//Amon::log('test me', array('test', 'debug'));
