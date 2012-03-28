@@ -1,8 +1,8 @@
 <?php
-require_once dirname(__FILE__)."/amon/config.php";
 require_once dirname(__FILE__)."/amon/data.php";
 require_once dirname(__FILE__)."/amon/errors.php";
-require_once dirname(__FILE__)."/amon/remote.php";
+require_once dirname(__FILE__)."/amon/http.php";
+require_once dirname(__FILE__)."/amon/zeromq.php";
 
 class Amon
 {
@@ -18,25 +18,22 @@ class Amon
 
     /**
      *  Overwrite the default configuration
-     *  Amon::config(array('port', 'host', 'application_key'))
+     *  Amon::config(array('address', 'application_key','protocol'))
      *
      */
     public static function config($array)
     {
         self::$config_array = (object)$array;
-        // Construct the url
-        self::$config_array->url = sprintf("%s:%d", 
-            self::$config_array->host,
-            self::$config_array->port);
-
     }
 
-    /** Check for the config array or default to /etc/amon.conf */
+    /** Create a config array with some defaults */
     private function _get_config_object()
     {
         if(empty(self::$config_array))
         {
-            $config = new AmonConfig();
+            // Defaults
+            $config = array("address" => 'http://127.0.0.1:2464',
+                "protocol" => 'http');
         }
         else
         {
@@ -62,12 +59,24 @@ class Amon
             'tags'  => $tags
         );
         $config = self::_get_config_object();
-        $log_url = sprintf("%s/api/log", $config->url);
-        if($config->application_key){ 
+        $log_url = sprintf("%s/api/log", $config->address);
+        
+        if(property_exists($config, 'application_key')){ 
             $log_url = sprintf("%s/%s", $log_url, $config->application_key);
         }
-
-        AmonRemote::request($log_url, $data);
+        
+        if($config->protocol == 'http') {
+            AmonHTTP::request($log_url, $data);
+        }
+        else if($config->protocol == 'zeromq') {
+            
+            $zeromq_data = array('content' => $data,
+                                 'type' => 'log');
+            
+            if(property_exists($config, 'application_key')){
+            }    
+            AmonZeroMQ::request($config->address, $zeromq_data);
+        }
     }
 
     static function setup_exception_handler() 
@@ -143,15 +152,24 @@ class Amon
     static function handle_exception($exception, $call_previous = true) 
     {
         $config = self::_get_config_object();
-        $exception_url = sprintf("%s/api/exception", $config->url);
-        if($config->application_key){ 
-            $exception_url = sprintf("%s/%s", $exception_url, $config->application_key);
-        }
 
         self::$exceptions[] = $exception;
 
         $data = new AmonData($exception);
-        AmonRemote::request($exception_url, $data->data);
+        
+        if($config->protocol == 'http') {
+
+            $exception_url = sprintf("%s/api/exception", $config->address);
+            if(property_exists($config, 'application_key')){ 
+                $exception_url = sprintf("%s/%s", $exception_url, $config->application_key);
+            }
+            
+            AmonHTTP::request($exception_url, $data->data);
+        }
+        else if($config->protocol == 'zeromq') {
+            $zeromq_data = array('content'=> $data->data, 'type' => 'exception');
+            AmonZeroMQ::request($config->address, $zeromq_data);
+        }
 
         // if there's a previous exception handler, we call that as well
         if ($call_previous && self::$previous_exception_handler) {

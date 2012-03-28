@@ -1,6 +1,6 @@
 <?php 
 
-class AmonRemote
+class AmonHTTP
 {
 
     /**
