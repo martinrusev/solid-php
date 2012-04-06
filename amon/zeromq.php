@@ -16,7 +16,7 @@ class AmonZeroMQ
         $context = new ZMQContext();
         $requester = new ZMQSocket($context, ZMQ::SOCKET_DEALER);
         $requester->connect(sprintf("tcp://%s", $address));
-        $requester->send(json_encode($data));
+        $requester->send(json_encode($data), ZMQ::MODE_NOBLOCK);
 
     }
 

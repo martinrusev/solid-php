@@ -74,6 +74,7 @@ class Amon
                                  'type' => 'log');
             
             if(property_exists($config, 'application_key')){
+                $zeromq_data['app_key'] = $config->application_key;
             }    
             AmonZeroMQ::request($config->address, $zeromq_data);
         }
@@ -168,6 +169,9 @@ class Amon
         }
         else if($config->protocol == 'zeromq') {
             $zeromq_data = array('content'=> $data->data, 'type' => 'exception');
+            if(property_exists($config, 'application_key')){ 
+                $zeromq_data['app_key'] = $config->application_key;
+            }    
             AmonZeroMQ::request($config->address, $zeromq_data);
         }
 
