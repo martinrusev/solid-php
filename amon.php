@@ -69,6 +69,7 @@ class Amon
             AmonHTTP::request($log_url, $data);
         }
         else if($config->protocol == 'zeromq') {
+            $requester = AmonZeroMQ::getInstance($config->address);
             
             $zeromq_data = array('content' => $data,
                                  'type' => 'log');
@@ -76,7 +77,7 @@ class Amon
             if(property_exists($config, 'application_key')){
                 $zeromq_data['app_key'] = $config->application_key;
             }    
-            AmonZeroMQ::request($config->address, $zeromq_data);
+            $requester->post($zeromq_data);
         }
     }
 
