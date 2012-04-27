@@ -1,11 +1,12 @@
 <?php
 
+require dirname(__FILE__)."/amon.php";
+
 $zeromq_benchmark = True;
-$http_benchmark = True;
+$http_benchmark = False;
 
 if($http_benchmark == True) {
     // Set the exception handler
-    require dirname(__FILE__)."/amon.php";
     Amon::config(array('address'=> 'http://127.0.0.1:2464',
         'protocol' => 'http'));
 
