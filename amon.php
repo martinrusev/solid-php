@@ -173,7 +173,7 @@ class Amon
             if(property_exists($config, 'application_key')){ 
                 $zeromq_data['app_key'] = $config->application_key;
             }    
-            AmonZeroMQ::request($config->address, $zeromq_data);
+            AmonZeroMQ::getInstance($config->address)->post($zeromq_data);
         }
 
         // if there's a previous exception handler, we call that as well
