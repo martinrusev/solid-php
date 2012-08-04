@@ -61,8 +61,8 @@ class Amon
         $config = self::_get_config_object();
         $log_url = sprintf("%s/api/log", $config->address);
         
-        if(property_exists($config, 'application_key')){ 
-            $log_url = sprintf("%s/%s", $log_url, $config->application_key);
+        if(property_exists($config, 'secret_key')){ 
+            $log_url = sprintf("%s/%s", $log_url, $config->secret_key);
         }
         
         if($config->protocol == 'http') {
@@ -74,8 +74,8 @@ class Amon
             $zeromq_data = array('content' => $data,
                                  'type' => 'log');
             
-            if(property_exists($config, 'application_key')){
-                $zeromq_data['app_key'] = $config->application_key;
+            if(property_exists($config, 'secret_key')){
+                $zeromq_data['app_key'] = $config->secret_key;
             }    
             $requester->post($zeromq_data);
         }
@@ -162,16 +162,16 @@ class Amon
         if($config->protocol == 'http') {
 
             $exception_url = sprintf("%s/api/exception", $config->address);
-            if(property_exists($config, 'application_key')){ 
-                $exception_url = sprintf("%s/%s", $exception_url, $config->application_key);
+            if(property_exists($config, 'secret_key')){ 
+                $exception_url = sprintf("%s/%s", $exception_url, $config->secret_key);
             }
             
             AmonHTTP::request($exception_url, $data->data);
         }
         else if($config->protocol == 'zeromq') {
             $zeromq_data = array('content'=> $data->data, 'type' => 'exception');
-            if(property_exists($config, 'application_key')){ 
-                $zeromq_data['app_key'] = $config->application_key;
+            if(property_exists($config, 'secret_key')){ 
+                $zeromq_data['app_key'] = $config->secret_key;
             }    
             AmonZeroMQ::getInstance($config->address)->post($zeromq_data);
         }
