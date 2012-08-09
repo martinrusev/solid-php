@@ -18,7 +18,7 @@ class Amon
 
     /**
      *  Overwrite the default configuration
-     *  Amon::config(array('address', 'application_key','protocol'))
+     *  Amon::config(array('address', 'secret_key','protocol'))
      *
      */
     public static function config($array)
@@ -27,13 +27,12 @@ class Amon
     }
 
     /** Create a config array with some defaults */
-    private function _get_config_object()
+    private static function _get_config_object()
     {
         if(empty(self::$config_array))
         {
             // Defaults
-            $config = array("address" => 'http://127.0.0.1:2464',
-                "protocol" => 'http');
+            $config = array("address" => 'http://127.0.0.1:2464', "protocol" => 'http');
         }
         else
         {
@@ -67,15 +66,14 @@ class Amon
         
         if($config->protocol == 'http') {
             AmonHTTP::request($log_url, $data);
-        }
-        else if($config->protocol == 'zeromq') {
+        } else if($config->protocol == 'zeromq') {
             $requester = AmonZeroMQ::getInstance($config->address);
             
             $zeromq_data = array('content' => $data,
                                  'type' => 'log');
             
             if(property_exists($config, 'secret_key')){
-                $zeromq_data['app_key'] = $config->secret_key;
+                $zeromq_data['secret_key'] = $config->secret_key;
             }    
             $requester->post($zeromq_data);
         }
@@ -167,11 +165,11 @@ class Amon
             }
             
             AmonHTTP::request($exception_url, $data->data);
-        }
-        else if($config->protocol == 'zeromq') {
+        
+        } else if($config->protocol == 'zeromq') {
             $zeromq_data = array('content'=> $data->data, 'type' => 'exception');
             if(property_exists($config, 'secret_key')){ 
-                $zeromq_data['app_key'] = $config->secret_key;
+                $zeromq_data['secret_key'] = $config->secret_key;
             }    
             AmonZeroMQ::getInstance($config->address)->post($zeromq_data);
         }
