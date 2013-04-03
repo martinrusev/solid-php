@@ -6,11 +6,9 @@ Download the client from [https://github.com/martinrusev/amon-php](https://githu
 
 ## Configuration
 
-
-  require_once 'amon.php'
+	require_once 'amon.php'
 	Amon::config(array('host'=> 'http://127.0.0.1', 'port' => 2464, 
 	'secret_key': 'the secret key from /etc/amonlite.conf'));
-
 
 ## Usage
 
@@ -36,5 +34,3 @@ To capture exceptions triggered from your PHP applications, add the following 2 
 
 	require "amon.php";
 	Amon::setup_exception_handler();
-
-
